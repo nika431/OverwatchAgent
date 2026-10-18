@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SystemMind UI</title>
+
+    <!-- Tailwind Play CDN (development build). Pinned so a CDN update cannot change the look
+         mid-hackathon. For production, compile the CSS with the Tailwind CLI instead. -->
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              bgBase: "#0d1117", // app background
+              bgDeep: "#0a0c10", // main area, inputs
+              panelBase: "#161b22", // cards, panels
+              rowHover: "#1f242c", // list row hover
+              borderLine: "#30363d",
+              textMain: "#c9d1d9",
+              textMuted: "#8b949e",
+              accentBlue: "#2f81f7",
+              accentPurple: "#a371f7",
+              alertRed: "#f85149",
+              warnOrange: "#d29922",
+              okGreen: "#2ea043",
+            },
+            fontSize: { xxs: "0.65rem" },
+          },
+        },
+      };
+    </script>
+
+    <!-- Reusable components (Tailwind @apply) so the markup below stays readable -->
+    <style type="text/tailwindcss">
+      @layer components {
+        /* buttons */
+        .btn {
+          @apply whitespace-nowrap rounded border border-borderLine px-3 py-1.5 text-sm hover:bg-borderLine;
+        }
+        .btn-primary {
+          @apply whitespace-nowrap rounded-md bg-accentBlue px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-600;
+        }
+        .btn-danger {
+          @apply whitespace-nowrap rounded border border-alertRed/30 bg-alertRed/10 px-3 py-1.5 text-sm text-alertRed hover:bg-alertRed/20;
+        }
+        .btn-link {
+          @apply text-sm text-textMuted hover:text-white;
+        }
+        .chip {
+          @apply whitespace-nowrap rounded border border-borderLine px-3 py-1 text-xs text-textMuted transition hover:bg-borderLine hover:text-white;
+        }
+
+        /* surfaces and text */
+        .card {
+          @apply rounded-md border border-borderLine bg-panelBase;
+        }
+        .eyebrow {
+          @apply text-xs uppercase tracking-widest text-textMuted;
+        }
+        .page-head {
+          @apply flex items-end justify-between;
+        }
+        .page-title {
+          @apply text-2xl font-bold text-white;
+        }
+        .page-sub {
+          @apply mt-1 text-xs text-textMuted;
+        }
+        .field {
+          @apply rounded border border-borderLine bg-bgDeep px-3 py-1.5 text-sm outline-none focus:border-accentBlue;
+        }
+
+        /* status tags and count badges */
+        .tag {
+          @apply rounded border px-1.5 text-xs;
+        }
+        .tag-ok {
+          @apply border-okGreen text-okGreen;
+        }
+        .tag-warn {
+          @apply border-warnOrange text-warnOrange;
+        }
+        .tag-danger {
+          @apply border-alertRed text-alertRed;
+        }
+        .badge {
+          @apply rounded border border-borderLine bg-borderLine px-1.5 text-xs text-textMuted;
+        }
+        .badge-danger {
+          @apply border-alertRed/30 text-alertRed;
+        }
+
+        /* sidebar navigation: the active state comes from aria-current, not from toggled classes */
+        .nav-group {
+          @apply px-2 text-xxs font-bold tracking-wider text-textMuted;
+        }
+        .nav-btn {
+          @apply flex w-full items-center justify-between rounded-md border border-transparent px-2 py-1.5 text-left text-textMuted hover:bg-panelBase hover:text-white aria-[current=page]:border-borderLine aria-[current=page]:bg-panelBase aria-[current=page]:text-white;
+        }
+
+        /* one screen of the app; .active shows it */
+        .view {
+          @apply hidden min-h-0 flex-1 flex-col overflow-y-auto p-6;
+        }
+        .view.active {
+          @apply flex;
+        }
+      }
+    </style>
+
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+      }
+
+      /* scrollbars */
+      :root {
+        --scroll-thumb: #30363d;
+        --scroll-thumb-hover: #484f58;
+      }
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--scroll-thumb) transparent;
+      }
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--scroll-thumb);
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--scroll-thumb-hover);
+      }
+      .no-scrollbar {
+        scrollbar-width: none;
+      }
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+
+      /* circular gauge arcs animate to their value */
+      .gauge-arc {
+        transition: stroke-dasharray 0.8s ease-out;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .gauge-arc {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+
+  <body class="flex h-screen overflow-hidden bg-bgBase text-sm text-textMain">
+    <!-- LEFT SIDEBAR -->
+    <aside
+      class="z-10 flex w-60 shrink-0 flex-col border-r border-borderLine bg-bgBase"
+    >
+      <div class="flex h-14 items-center gap-2 px-4 font-semibold text-white">
+        <svg
+          class="h-5 w-5 text-accentBlue"
+          fill="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+        </svg>
+        SystemMind
+      </div>
+
+      <nav
+        class="flex flex-1 flex-col gap-1 overflow-y-auto px-2 py-2"
+        aria-label="Main"
+      >
+        <div class="nav-group mb-1 mt-4">MONITORING</div>
+        <button
+          type="button"
+          class="nav-btn"
+          data-tab="dashboard"
+          aria-current="page"
+        >
+          Dashboard
+        </button>
+        <button type="button" class="nav-btn" data-tab="storage">
+          Storage
+        </button>
+        <button type="button" class="nav-btn" data-tab="processes">
+          Processes
+        </button>
+        <button type="button" class="nav-btn" data-tab="health">
+          System Health
+          <span class="badge badge-danger">22</span>
+        </button>
+
+        <div class="nav-group mb-1 mt-6">TOOLS</div>
+        <button type="button" class="nav-btn" data-tab="cleanup">
+          Cleanup
+          <span class="badge">401 MB</span>
+        </button>
+        <button type="button" class="nav-btn" data-tab="settings">
+          Settings
+        </button>
+      </nav>
+
+      <div class="border-t border-borderLine p-4">
+        <div class="mb-1 text-xxs tracking-wider text-textMuted">
+          SYSTEM HEALTH • LIVE
+        </div>
+        <div class="mb-4 flex items-end justify-between">
+          <div class="text-3xl font-bold leading-none text-white">92</div>
+          <span class="tag tag-warn py-0.5">WATCH</span>
+        </div>
+        <div class="text-xs leading-tight text-textMuted">
+          zenbook • Arch Linux<br />Sampled every 2 s
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex min-w-0 flex-1 flex-col bg-bgDeep">
+      <header
+        class="flex h-14 shrink-0 items-center justify-between border-b border-borderLine px-6"
+      >
+        <div class="font-mono text-xs uppercase tracking-widest text-textMuted">
+          SUN 18 OCT • 16 LOGICAL CORES • <span class="text-okGreen">LIVE</span>
+        </div>
+        <button type="button" class="btn-primary">
+          Explain my system &rarr;
+        </button>
+      </header>
+
+      <!-- DASHBOARD -->
+      <section
+        id="view-dashboard"
+        class="view active gap-4"
+        aria-label="Dashboard"
+      >
+        <div class="mb-2 border-l-2 border-warnOrange pl-4">
+          <div class="eyebrow mb-1">Insights</div>
+          <h2 class="mb-4 text-xl font-semibold text-white">
+            Running fine. One thing needs a look: disk errors.
+          </h2>
+          <ul
+            id="insights"
+            class="card divide-y divide-borderLine overflow-hidden"
+          ></ul>
+        </div>
+        <div id="gauges" class="mt-2 grid grid-cols-4 gap-4"></div>
+      </section>
+
+      <!-- STORAGE -->
+      <section id="view-storage" class="view gap-4" aria-label="Storage">
+        <div class="mb-2 flex flex-wrap items-center justify-between gap-3">
+          <div id="breadcrumbs" class="flex items-center gap-1">
+            <span class="px-2 text-lg text-textMuted">/</span>
+            <div class="card flex gap-1 px-1 py-0.5"></div>
+          </div>
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span class="text-xs text-textMuted"
+              >Scan completed in 7.4 s • 723,352 files • 104.14 GB</span
+            >
+            <div class="flex gap-2">
+              <button type="button" class="btn">Browse...</button>
+              <button type="button" class="btn-primary">Scan</button>
+              <button type="button" class="btn text-textMuted">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="drive-stats" class="grid grid-cols-3 gap-4">
+          <div
+            class="flex flex-col justify-center rounded-md border border-accentBlue/30 bg-accentBlue/5 p-3"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <span class="text-sm font-medium text-white">Tip</span>
+              <span class="text-xs text-textMuted"
+                >pacman cache = 19% of scan</span
+              >
+            </div>
+            <span class="mt-1 text-xs text-textMuted"
+              >Keep last 2 versions to free ~16 GB</span
+            >
+          </div>
+        </div>
+
+        <!-- grid-rows + min-h-0 keep both panels inside the row; their lists scroll instead of spilling out -->
+        <div
+          class="grid min-h-[250px] flex-1 grid-cols-2 grid-rows-[minmax(0,1fr)] gap-4"
+        >
+          <div class="card flex min-h-0 flex-col">
+            <div class="eyebrow border-b border-borderLine p-4">
+              FOLDERS • SIZE SHARE
+            </div>
+            <div id="folders" class="min-h-0 flex-1 overflow-y-auto p-2"></div>
+          </div>
+          <div class="card flex min-h-0 flex-col">
+            <div class="eyebrow border-b border-borderLine p-4">FILE TYPES</div>
+            <div
+              id="file-types"
+              class="min-h-0 flex-1 overflow-y-auto p-2"
+            ></div>
+          </div>
+        </div>
+
+        <!-- Treemap preview -->
+        <div
+          id="treemap"
+          class="flex h-24 gap-1 text-xs font-medium leading-tight text-black"
+        ></div>
+
+        <div
+          class="flex flex-wrap items-center justify-between gap-2 border-t border-borderLine pt-2"
+        >
+          <div class="text-xs text-textMuted">
+            Selected: <span class="text-white">cuda-13.4.2-1-x86...</span> •
+            2.43 GB
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" class="btn">Reveal</button>
+            <button type="button" class="btn">Terminal</button>
+            <button type="button" class="btn">Copy path</button>
+            <button type="button" class="btn text-white">Ask assistant</button>
+            <button type="button" class="btn-danger">Move to trash</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- PROCESSES -->
+      <section id="view-processes" class="view" aria-label="Processes">
+        <div class="page-head mb-6">
+          <div>
+            <h1 class="page-title">Processes</h1>
+            <p class="page-sub">
+              Tracking 458 active processes • 16 cores • grouped ones share a
+              name
+            </p>
+          </div>
+          <button type="button" class="btn text-white">Refresh</button>
+        </div>
+
+        <div
+          class="flex items-center gap-4 rounded-t-md border border-borderLine bg-panelBase p-3"
+        >
+          <div class="w-24 border-r border-borderLine text-center">
+            <div class="font-bold text-accentBlue">70%</div>
+            <div class="text-xs text-textMuted">CPU</div>
+          </div>
+          <div class="w-24 border-r border-borderLine text-center">
+            <div class="font-bold text-warnOrange">10.9 / 14.7<br />GB</div>
+            <div class="text-xs text-textMuted">RAM</div>
+          </div>
+          <input
+            type="text"
+            class="field min-w-0 flex-1"
+            placeholder="Filter by name or PID..."
+            aria-label="Filter processes"
+          />
+          <div class="flex gap-2">
+            <button
+              type="button"
+              class="rounded bg-borderLine px-3 py-1.5 text-sm text-white"
+            >
+              App
+            </button>
+            <button
+              type="button"
+              class="rounded px-3 py-1.5 text-sm text-textMuted hover:bg-borderLine"
+            >
+              Process
+            </button>
+          </div>
+          <button type="button" class="btn">Ask assistant</button>
+          <button type="button" class="btn-danger">End task</button>
+        </div>
+
+        <div
+          id="process-list"
+          class="flex-1 overflow-y-auto rounded-b-md border-x border-b border-borderLine bg-panelBase"
+        ></div>
+      </section>
+
+      <!-- SYSTEM HEALTH -->
+      <section id="view-health" class="view" aria-label="System health">
+        <div class="page-head mb-6">
+          <div>
+            <h1 class="page-title">System Health</h1>
+            <p class="page-sub">
+              Crashes, hardware, driver and storage events from the Linux system
+              journal
+            </p>
+          </div>
+          <div class="card flex gap-2 p-1">
+            <button type="button" class="px-3 py-1 text-xs text-textMuted">
+              7D
+            </button>
+            <button
+              type="button"
+              class="rounded bg-borderLine px-3 py-1 text-xs text-white"
+              aria-pressed="true"
+            >
+              30D
+            </button>
+            <button type="button" class="px-3 py-1 text-xs text-textMuted">
+              90D
+            </button>
+            <button
+              type="button"
+              class="ml-2 whitespace-nowrap rounded bg-accentBlue px-4 py-1 text-xs text-white"
+            >
+              Scan now
+            </button>
+          </div>
+        </div>
+        <div id="health-stats" class="mb-6 grid grid-cols-3 gap-4"></div>
+      </section>
+
+      <!-- CLEANUP -->
+      <section id="view-cleanup" class="view gap-4" aria-label="Cleanup">
+        <div class="page-head mb-4">
+          <div>
+            <h1 class="page-title">Cleanup</h1>
+            <p class="page-sub">
+              Caches, packages and build artifacts you can safely reclaim
+            </p>
+          </div>
+          <div class="flex gap-2">
+            <button type="button" class="btn px-4 text-white">Scan</button>
+            <button
+              type="button"
+              class="cursor-not-allowed rounded border border-accentBlue/30 bg-accentBlue/20 px-4 py-1.5 text-sm text-accentBlue opacity-50"
+              disabled
+            >
+              Move to trash
+            </button>
+          </div>
+        </div>
+
+        <div class="card mb-2 grid grid-cols-3 gap-4 p-4">
+          <div class="border-r border-borderLine">
+            <div class="mb-1 text-xs text-textMuted">DETECTED</div>
+            <div class="text-2xl font-bold text-accentBlue">21.10 GB</div>
+            <div class="text-xs text-textMuted">7 targets</div>
+          </div>
+          <div class="border-r border-borderLine px-4">
+            <div class="mb-1 text-xs text-textMuted">SELECTED</div>
+            <div class="text-2xl font-bold text-white">0.0 MB</div>
+            <div class="text-xs text-textMuted">
+              0 items • moved to trash, undo for 10 min
+            </div>
+          </div>
+          <div class="px-4">
+            <div class="mb-1 text-xs text-textMuted">LAST CLEAN</div>
+            <div class="text-sm font-medium text-white">
+              Reclaimed 1.96 GB across 5 items
+            </div>
+            <div class="text-xs text-textMuted">Today 02:51</div>
+          </div>
+        </div>
+
+        <div class="mb-2 flex gap-2">
+          <button
+            type="button"
+            class="rounded border border-borderLine px-3 py-1 text-sm text-textMuted hover:text-white"
+          >
+            Select all Safe
+          </button>
+          <button
+            type="button"
+            class="rounded border border-borderLine px-3 py-1 text-sm text-textMuted hover:text-white"
+          >
+            Deselect all
+          </button>
+        </div>
+
+        <ul
+          id="cleanup-list"
+          class="card flex-1 divide-y divide-borderLine overflow-y-auto"
+        ></ul>
+      </section>
+
+      <!-- SETTINGS (placeholder: the sidebar link used to open a blank screen) -->
+      <section id="view-settings" class="view" aria-label="Settings">
+        <h1 class="page-title">Settings</h1>
+        <p class="page-sub">Nothing to configure yet.</p>
+      </section>
+    </main>
+
+    <!-- RIGHT SIDEBAR: ASSISTANT -->
+    <aside
+      class="z-10 flex w-80 shrink-0 flex-col border-l border-borderLine bg-bgBase"
+      aria-label="Assistant"
+    >
+      <div
+        class="flex h-14 items-center justify-between border-b border-borderLine px-4"
+      >
+        <div class="flex gap-2 font-mono text-xs text-textMuted">
+          <span>ASSISTANT</span> • <span class="text-okGreen">READY</span>
+        </div>
+        <button type="button" class="text-xs text-textMuted hover:text-white">
+          HISTORY
+        </button>
+      </div>
+
+      <div
+        class="flex flex-1 flex-col gap-4 overflow-y-auto p-4"
+        aria-live="polite"
+      >
+        <div
+          id="assistant-context"
+          class="self-start rounded border border-borderLine px-2 py-1 text-xs text-textMuted"
+        ></div>
+        <div
+          id="assistant-question"
+          class="max-w-[90%] self-end rounded-lg border border-borderLine bg-panelBase p-3 text-sm text-textMain"
+        ></div>
+        <div
+          id="assistant-response"
+          class="self-start text-sm leading-relaxed text-textMain"
+        ></div>
+      </div>
+
+      <div class="border-t border-borderLine bg-panelBase p-4">
+        <div class="no-scrollbar mb-2 flex gap-2 overflow-x-auto pb-1">
+          <button type="button" class="chip">Check memory</button>
+          <button type="button" class="chip">Explain sda1 errors</button>
+        </div>
+        <div class="flex gap-2">
+          <input
+            type="text"
+            class="field min-w-0 flex-1 bg-bgBase py-2"
+            placeholder="Ask about this screen"
+            aria-label="Ask the assistant"
+          />
+          <button
+            type="button"
+            class="rounded bg-accentBlue px-4 text-sm font-medium text-white hover:bg-blue-600"
+          >
+            Ask
+          </button>
+        </div>
+        <div class="mt-2 text-center text-xxs text-textMuted">
+          openrouter/free • sends summaries, not file contents
+        </div>
+      </div>
+    </aside>
+
+    <script>
+      "use strict";
+
+      /* ==========================================================================
+         MOCK DATA
+         Everything the screens show lives here. To go live, replace these
+         constants with API responses (processes already try /api/processes).
+         ========================================================================== */
+
+      const INSIGHTS = [
+        {
+          tag: "WATCH",
+          tone: "warn",
+          title: "Disk sda1 reports I/O errors",
+          detail: "9 buffer I/O errors in 30 days. Back up important files.",
+        },
+        {
+          tag: "WATCH",
+          tone: "warn",
+          title: "Battery at 32% and discharging",
+          detail: "About 1 h 40 min left at the current draw. Health 93%.",
+        },
+        {
+          tag: "OK",
+          tone: "ok",
+          title: "Memory is within safe limits",
+          detail: "10.6 of 14.7 GB in use. 4.1 GB still available.",
+        },
+      ];
+
+      // value = percent of the ring to fill; text = what the centre shows
+      const GAUGES = [
+        {
+          label: "CPU",
+          value: 6,
+          text: "6%",
+          stroke: "stroke-accentBlue",
+          caption: ["15 of 16 cores idle"],
+        },
+        {
+          label: "MEMORY",
+          value: 72,
+          text: "72%",
+          stroke: "stroke-accentBlue",
+          caption: ["10.6 / 14.7 GB"],
+        },
+        {
+          label: "GPU",
+          value: 95,
+          text: "95%",
+          stroke: "stroke-alertRed",
+          caption: ["Radeon 840M • 0.5 GB", "VRAM"],
+        },
+        {
+          label: "THERMAL",
+          value: 35,
+          text: "35°",
+          stroke: "stroke-warnOrange",
+          caption: ["CPU max 41 °C"],
+        },
+      ];
+
+      const HEALTH_STATS = [
+        {
+          label: "EVENTS",
+          value: 64,
+          box: "border-borderLine bg-panelBase",
+          text: "text-white",
+        },
+        {
+          label: "CRITICAL",
+          value: 22,
+          box: "border-alertRed/30 bg-alertRed/5",
+          text: "text-alertRed",
+        },
+        {
+          label: "WARNINGS",
+          value: 42,
+          box: "border-warnOrange/30 bg-warnOrange/5",
+          text: "text-warnOrange",
+        },
+      ];
+
+      const BREADCRUMBS = ["/", "~", "Downloads", "/var", "/usr"];
+
+      const DRIVES = [
+        { name: "System Root (/)", free: "779 GB free", share: 15 },
+        { name: "/boot", free: "1 GB free", share: 5 },
+      ];
+
+      const FOLDERS = [
+        { name: "/home", size: "41.2 GB", share: 80 },
+        { name: "/var", size: "26.8 GB", share: 50 },
+        { name: "/usr", size: "19.1 GB", share: 40 },
+        { name: "/opt", size: "9.4 GB", share: 20 },
+        { name: "/srv", size: "4.1 GB", share: 10 },
+        { name: "other", size: "3.5 GB", share: 5 },
+      ];
+
+      const FILE_TYPES = [
+        {
+          ext: "(no extension)",
+          kind: "Other",
+          size: "30.84 GB",
+          share: "29.6%",
+          color: "bg-textMuted",
+        },
+        {
+          ext: ".zst",
+          kind: "Other • pacman cache?",
+          size: "19.78 GB",
+          share: "19.0%",
+          color: "bg-okGreen",
+        },
+        {
+          ext: ".flac",
+          kind: "Audio",
+          size: "6.1 GB",
+          share: "5.9%",
+          color: "bg-accentBlue",
+        },
+        {
+          ext: ".mp4",
+          kind: "Video",
+          size: "5.83 GB",
+          share: "5.6%",
+          color: "bg-accentPurple",
+        },
+        {
+          ext: ".rar",
+          kind: "Archive",
+          size: "5.4 GB",
+          share: "5.2%",
+          color: "bg-warnOrange",
+        },
+        {
+          ext: ".so",
+          kind: "Binary",
+          size: "3.49 GB",
+          share: "3.4%",
+          color: "bg-alertRed",
+        },
+      ];
+
+      // pct = width in the row; the last tile has no pct and takes the remaining space
+      const TREEMAP = [
+        {
+          name: "cuda-13.4.2-1-x86...",
+          size: "2.43 GB",
+          pct: 20,
+          color: "bg-okGreen",
+          selected: true,
+        },
+        {
+          name: "israel-palestina...",
+          size: "2.06 GB",
+          pct: 15,
+          color: "bg-accentPurple",
+        },
+        {
+          name: "ETS2-ALL-DLCs-v1...",
+          size: "1.72 GB",
+          pct: 12,
+          color: "bg-warnOrange",
+        },
+        {
+          name: "rocm-llvm-2:7.2.4...",
+          size: "1.34 GB",
+          pct: 10,
+          color: "bg-accentBlue",
+        },
+        {
+          name: "Complete_Or...",
+          size: "1 GB",
+          pct: 8,
+          color: "bg-warnOrange",
+        },
+        { name: "ollama-rocm...", pct: 6, color: "bg-accentBlue" },
+        { name: "ollama-rocm...", pct: 6, color: "bg-accentBlue" },
+        { name: "BaseSystem...", pct: 8, color: "bg-warnOrange" },
+        { name: "rocsolver-...", color: "bg-textMuted" },
+      ];
+
+      // risk: Safe = regenerated automatically, Review = may log you out, Careful = deleted for good
+      const CLEANUP_ITEMS = [
+        {
+          name: "Brave browser cache",
+          risk: "Review",
+          path: "/home/zura156/.cache/BraveSoftware",
+          size: "202.8 MB",
+          share: 10,
+        },
+        {
+          name: "Firefox browser cache",
+          risk: "Review",
+          path: "/home/zura156/.cache/mozilla",
+          size: "186.4 MB",
+          share: 10,
+        },
+        {
+          name: "Pacman package cache",
+          risk: "Safe",
+          path: "/var/cache/pacman/pkg • keep last 2",
+          size: "16.20 GB",
+          share: 100,
+        },
+        {
+          name: "node_modules (6 projects)",
+          risk: "Review",
+          path: "~/projects/*/node_modules",
+          size: "3.40 GB",
+          share: 30,
+        },
+        {
+          name: "systemd journal (> 2 weeks)",
+          risk: "Safe",
+          path: "/var/log/journal",
+          size: "1.10 GB",
+          share: 15,
+        },
+        {
+          name: "Temporary files",
+          risk: "Safe",
+          path: "/tmp",
+          size: "18.4 MB",
+          share: 2,
+        },
+        {
+          name: "Flatpak app data",
+          risk: "Careful",
+          path: "/home/zura156/.var/app",
+          size: "4.1 MB",
+          share: 1,
+        },
+      ];
+
+      const RISK_TAG = {
+        Safe: "tag-ok",
+        Review: "tag-warn",
+        Careful: "tag-danger",
+      };
+
+      // Used when the backend is unreachable. `color` is a Tailwind background class.
+      const FALLBACK_PROCESSES = [
+        {
+          pid: "",
+          name: "> brave x 7",
+          mem: "2189.4 MB",
+          color: "bg-warnOrange",
+        },
+        {
+          pid: "",
+          name: "> Code x 3",
+          mem: "1822.8 MB",
+          color: "bg-accentBlue",
+        },
+        {
+          pid: "522682",
+          name: "SystemMind",
+          mem: "764.9 MB",
+          color: "bg-textMuted",
+        },
+        {
+          pid: "210750",
+          name: "copilot-runtime",
+          mem: "464.5 MB",
+          color: "bg-accentBlue",
+        },
+        {
+          pid: "107901",
+          name: "Discord",
+          mem: "300.7 MB",
+          color: "bg-alertRed",
+        },
+      ];
+
+      /* Assistant panel: one question and answer per screen */
+      const strong = (text, tone = "text-white") =>
+        `<span class="font-semibold ${tone}">${text}</span>`;
+      const code = (text) =>
+        `<code class="mx-1 rounded border border-borderLine bg-panelBase px-1 py-0.5 text-xs">${text}</code>`;
+
+      const ASSISTANT = {
+        dashboard: {
+          question: "Anything I should worry about?",
+          answer: `${strong("One thing.")} sda1 logged 9 I/O errors this month while the disk is only 17% full. That points to the drive or cable, not space. Back up, then run ${code("smartctl -a /dev/sda")}<br><br>Memory (72%) and battery (32%) are fine for now.`,
+        },
+        processes: {
+          question: "What is using my memory?",
+          answer: `${strong("Browsers and editors.")} Brave (11 processes) and VS Code together hold ~2.5 GB, Firefox ~1.5 GB. Closing unused Brave tabs frees the most. SystemMind itself uses 765 MB.`,
+        },
+        health: {
+          question: "What is wrong with my system?",
+          answer: `${strong("1. Storage errors (9).")} sda1 I/O errors are the serious ones.<br><br>${strong("2. Hardware errors (16).")} Check whether they cluster with GPU timeouts.<br><br>Spotify crashes (13) are annoying but harmless.`,
+        },
+        storage: {
+          question: "What can I free up?",
+          answer: `${strong("Pacman cache is the easy win.")} .zst files hold 19.8 GB (19%). Keeping the last 2 versions frees most of it:<br><br>${code("paccache -rk2")}<br><br>Next: two 1 GB game DLC archives and 7 ollama-rocm copies at ~980 MB each.`,
+        },
+        cleanup: {
+          question: "Is it safe to delete these?",
+          answer: `Everything marked Safe is regenerated automatically. ${strong("Review")} items may log you out of sites. ${strong("Careful", "text-alertRed")} items are deleted for good, so keep those unchecked unless sure.`,
+        },
+        // settings has no entry: the assistant panel just shows the screen name
+      };
+
+      /* ==========================================================================
+         HELPERS
+         ========================================================================== */
+
+      // Anything that can come from the backend must go through esc() before innerHTML.
+      const ESC_MAP = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      };
+      const esc = (value) =>
+        String(value ?? "").replace(/[&<>"']/g, (c) => ESC_MAP[c]);
+
+      const mount = (id, items, renderItem) => {
+        document.getElementById(id).innerHTML = items.map(renderItem).join("");
+      };
+
+      /* ==========================================================================
+         RENDERERS
+         ========================================================================== */
+
+      const renderInsight = (i) => `
+        <li class="flex cursor-pointer items-center p-3 hover:bg-rowHover">
+          <span class="tag tag-${i.tone} mr-4 w-14 text-center">${esc(i.tag)}</span>
+          <span class="w-64 font-medium text-white">${esc(i.title)}</span>
+          <span class="flex-1 text-sm text-textMuted">${esc(i.detail)}</span>
+          <span class="text-textMuted" aria-hidden="true">&rsaquo;</span>
+        </li>`;
+
+      // The ring path has a length of ~100, so stroke-dasharray "N 100" fills N percent.
+      const GAUGE_PATH =
+        "M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831";
+
+      const renderGauge = (g) => `
+        <div class="card relative flex flex-col items-center p-4">
+          <div class="absolute left-4 top-4 text-xs text-textMuted">${esc(g.label)}</div>
+          <div class="relative mt-4 h-28 w-28">
+            <svg class="h-full w-full" viewBox="0 0 36 36" role="img" aria-label="${esc(g.label)} ${esc(g.text)}">
+              <path class="stroke-borderLine" fill="none" stroke-width="3" d="${GAUGE_PATH}" />
+              <path class="gauge-arc ${g.stroke}" fill="none" stroke-width="3" stroke-dasharray="0 100" data-value="${g.value}" d="${GAUGE_PATH}" />
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center text-2xl font-bold text-white">${esc(g.text)}</div>
+          </div>
+          <div class="mt-4 text-center text-xs text-textMuted">${g.caption.map(esc).join("<br />")}</div>
+        </div>`;
+
+      // Start every arc at 0, then let the CSS transition fill it to its value.
+      const animateGauges = () => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            document.querySelectorAll(".gauge-arc").forEach((arc) => {
+              arc.setAttribute("stroke-dasharray", `${arc.dataset.value} 100`);
+            });
+          });
+        });
+      };
+
+      const renderHealthStat = (s) => `
+        <div class="rounded border p-4 ${s.box}">
+          <div class="mb-1 text-xs text-textMuted">${esc(s.label)}</div>
+          <div class="text-2xl font-bold ${s.text}">${esc(s.value)}</div>
+        </div>`;
+
+      const renderBreadcrumb = (name) =>
+        `<button type="button" class="rounded px-2 py-0.5 text-textMuted hover:text-white">${esc(name)}</button>`;
+
+      const renderDrive = (d) => `
+        <div class="card p-3">
+          <div class="mb-2 flex items-center justify-between">
+            <span class="font-medium text-white">${esc(d.name)}</span>
+            <span class="text-xs text-textMuted">${esc(d.free)}</span>
+          </div>
+          <div class="h-1.5 w-full overflow-hidden rounded bg-bgBase">
+            <div class="h-full bg-okGreen" style="width: ${d.share}%"></div>
+          </div>
+        </div>`;
+
+      const renderFolder = (f) => `
+        <div class="group flex cursor-pointer items-center justify-between rounded p-2 hover:bg-rowHover">
+          <span class="flex gap-2 text-textMuted group-hover:text-white"><span aria-hidden="true">&rsaquo;</span>${esc(f.name)}</span>
+          <div class="flex items-center gap-4">
+            <div class="h-1.5 w-24 rounded bg-bgBase"><div class="h-full bg-accentBlue" style="width: ${f.share}%"></div></div>
+            <span class="w-14 text-right text-xs text-white">${esc(f.size)}</span>
+          </div>
+        </div>`;
+
+      const renderFileType = (t) => `
+        <div class="flex cursor-pointer items-center justify-between rounded p-2 hover:bg-rowHover">
+          <div class="flex w-32 shrink-0 items-center gap-3">
+            <span class="h-3 w-3 rounded-sm ${t.color}"></span>
+            <span class="text-white">${esc(t.ext)}</span>
+          </div>
+          <span class="min-w-0 flex-1 truncate text-xs text-textMuted" title="${esc(t.kind)}">${esc(t.kind)}</span>
+          <span class="w-16 shrink-0 text-right text-xs text-white">${esc(t.size)}</span>
+          <span class="w-10 shrink-0 text-right text-xs text-textMuted">${esc(t.share)}</span>
+        </div>`;
+
+      const renderTreemapTile = (t) => {
+        const width = t.pct ? `width: ${t.pct}%` : "";
+        return `
+          <button type="button" title="${esc(t.name)}${t.size ? " • " + esc(t.size) : ""}"
+            class="flex min-w-0 cursor-pointer flex-col justify-end overflow-hidden rounded-sm p-1 text-left opacity-80 ${t.color} ${t.pct ? "" : "flex-1"} ${t.selected ? "border-2 border-white" : ""}"
+            style="${width}">
+            ${esc(t.name)}${t.size ? `<span class="text-xxs opacity-60">${esc(t.size)}</span>` : ""}
+          </button>`;
+      };
+
+      const renderCleanupItem = (c, index) => {
+        const isBig = c.size.endsWith("GB");
+        return `
+          <li class="flex items-center px-4 py-3 hover:bg-rowHover">
+            <input type="checkbox" id="clean-${index}" class="mr-4 h-4 w-4 accent-accentBlue" aria-label="Select ${esc(c.name)}" />
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-white">${esc(c.name)}</span>
+                <span class="tag ${RISK_TAG[c.risk]} text-xxs uppercase">${esc(c.risk)}</span>
+              </div>
+              <div class="mt-0.5 font-mono text-xs text-textMuted">${esc(c.path)}</div>
+            </div>
+            <div class="flex items-center gap-4">
+              <span class="w-20 text-right text-sm ${isBig ? "font-medium text-okGreen" : "text-textMuted"}">${esc(c.size)}</span>
+              <div class="h-1 w-8 overflow-hidden rounded bg-bgBase"><div class="h-full bg-okGreen" style="width: ${c.share}%"></div></div>
+              <button type="button" class="btn-link">Ask assistant</button>
+            </div>
+          </li>`;
+      };
+
+      /* ---- processes: live from the backend, mock data if it is down ---- */
+
+      const PROCESSES_URL = "/api/processes";
+      const MAX_MEM_MB = 2500; // memory that fills a bar completely
+
+      const renderProcess = (p) => {
+        const color = p.color || "bg-textMuted";
+        const width = Math.min(
+          100,
+          ((parseFloat(p.mem) || 0) / MAX_MEM_MB) * 100,
+        );
+        return `
+          <div class="group flex cursor-pointer items-center border-b border-borderLine px-4 py-2.5 text-sm hover:bg-rowHover">
+            <div class="w-20 font-mono text-xs text-textMuted">${esc(p.pid)}</div>
+            <div class="flex flex-1 items-center gap-2">
+              <span class="h-2 w-2 ${esc(color)}"></span>
+              <span class="text-white group-hover:text-accentBlue">${esc(p.name)}</span>
+            </div>
+            <div class="flex w-48 items-center justify-end gap-3">
+              <span class="w-20 text-right text-textMuted">${esc(p.mem)}</span>
+              <div class="flex h-1.5 w-24 overflow-hidden rounded bg-bgBase">
+                <div class="h-full ${esc(color)}" style="width: ${width}%"></div>
+              </div>
+            </div>
+          </div>`;
+      };
+
+      function renderProcesses(processes) {
+        const header = `
+          <div class="sticky top-0 flex border-b border-borderLine bg-panelBase px-4 py-2 text-xs text-textMuted">
+            <div class="w-20">PID</div>
+            <div class="flex-1">PROCESS</div>
+            <div class="w-48 text-right">MEMORY &darr;</div>
+          </div>`;
+        document.getElementById("process-list").innerHTML =
+          header + processes.map(renderProcess).join("");
+      }
+
+      async function loadProcesses() {
+        try {
+          const response = await fetch(PROCESSES_URL, {
+            signal: AbortSignal.timeout(3000),
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          if (!Array.isArray(data))
+            throw new Error("expected an array of processes");
+          renderProcesses(data);
+        } catch (error) {
+          console.warn(
+            "Process API unavailable, using mock data:",
+            error.message,
+          );
+          renderProcesses(FALLBACK_PROCESSES);
+        }
+      }
+
+      /* ==========================================================================
+         NAVIGATION AND ASSISTANT PANEL
+         ========================================================================== */
+
+      const views = document.querySelectorAll(".view");
+      const navButtons = document.querySelectorAll(".nav-btn");
+      const assistant = {
+        context: document.getElementById("assistant-context"),
+        question: document.getElementById("assistant-question"),
+        response: document.getElementById("assistant-response"),
+      };
+
+      function updateAssistant(tabId) {
+        const entry = ASSISTANT[tabId];
+        assistant.context.textContent = tabId.toUpperCase();
+        assistant.question.hidden = !entry;
+        assistant.response.hidden = !entry;
+        if (entry) {
+          assistant.question.textContent = entry.question;
+          assistant.response.innerHTML = entry.answer;
+        }
+      }
+
+      function switchTab(tabId) {
+        if (!document.getElementById(`view-${tabId}`)) return;
+
+        views.forEach((view) =>
+          view.classList.toggle("active", view.id === `view-${tabId}`),
+        );
+        navButtons.forEach((btn) => {
+          if (btn.dataset.tab === tabId)
+            btn.setAttribute("aria-current", "page");
+          else btn.removeAttribute("aria-current");
+        });
+        updateAssistant(tabId);
+      }
+
+      document.querySelector("nav").addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-tab]");
+        if (btn) switchTab(btn.dataset.tab);
+      });
+
+      /* ==========================================================================
+         START
+         ========================================================================== */
+
+      mount("insights", INSIGHTS, renderInsight);
+      mount("gauges", GAUGES, renderGauge);
+      mount("health-stats", HEALTH_STATS, renderHealthStat);
+      mount("folders", FOLDERS, renderFolder);
+      mount("file-types", FILE_TYPES, renderFileType);
+      mount("treemap", TREEMAP, renderTreemapTile);
+      mount("cleanup-list", CLEANUP_ITEMS, renderCleanupItem);
+      document.querySelector("#breadcrumbs .card").innerHTML =
+        BREADCRUMBS.map(renderBreadcrumb).join("");
+      document
+        .getElementById("drive-stats")
+        .insertAdjacentHTML("afterbegin", DRIVES.map(renderDrive).join(""));
+
+      animateGauges();
+      switchTab("dashboard");
+      loadProcesses();
+    </script>
+  </body>
+</html>
